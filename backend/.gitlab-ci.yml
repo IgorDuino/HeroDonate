@@ -1,0 +1,58 @@
+stages:
+- "test"
+
+.test-template:
+  stage: test
+  image: python:3.9.6-slim-buster
+  tags:
+  - kubernetes-runner
+  - docker-runner
+  except:
+  - tags
+  before_script:
+  - pip install poetry==1.2.2
+  - poetry config virtualenvs.create false
+  - poetry install
+
+black:
+  extends:
+  - .test-template
+  script:
+  - black --check .
+
+flake8:
+  extends:
+  - .test-template
+  script:
+  - flake8 --count .
+
+mypy:
+  extends:
+  - .test-template
+  script:
+  - mypy .
+
+pytest:
+  extends:
+  - .test-template
+  services:
+  - name: postgres:13.8-bullseye
+    alias: database
+  variables:
+
+    # Postgresql variables
+    HERO_DONATE_DB_HOST: database
+    POSTGRES_PASSWORD: hero_donate
+    POSTGRES_USER: hero_donate
+    POSTGRES_DB: hero_donate
+  script:
+  - apt update
+  - apt install -y wait-for-it
+  - wait-for-it -t 180 $HERO_DONATE_DB_HOST:5432
+  - pytest -vv --junitxml=report.xml --cov="hero_donate" .
+  - coverage xml
+  artifacts:
+    when: always
+    reports:
+      cobertura: coverage.xml
+      junit: report.xml

@@ -1,0 +1,57 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: ./deploy/Dockerfile
+    image: hero_donate:${HERO_DONATE_VERSION:-latest}
+    restart: always
+    env_file:
+    - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      HERO_DONATE_HOST: 0.0.0.0
+      HERO_DONATE_DB_HOST: hero_donate-db
+      HERO_DONATE_DB_PORT: 5432
+      HERO_DONATE_DB_USER: hero_donate
+      HERO_DONATE_DB_PASS: hero_donate
+      HERO_DONATE_DB_BASE: hero_donate
+
+  db:
+    image: postgres:13.8-bullseye
+    hostname: hero_donate-db
+    environment:
+      POSTGRES_PASSWORD: "hero_donate"
+      POSTGRES_USER: "hero_donate"
+      POSTGRES_DB: "hero_donate"
+    volumes:
+    - hero_donate-db-data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: pg_isready -U hero_donate
+      interval: 2s
+      timeout: 3s
+      retries: 40
+
+  migrator:
+    image: hero_donate:${HERO_DONATE_VERSION:-latest}
+    restart: "no"
+    command: aerich upgrade
+    environment:
+      HERO_DONATE_DB_HOST: hero_donate-db
+      HERO_DONATE_DB_PORT: 5432
+      HERO_DONATE_DB_USER: hero_donate
+      HERO_DONATE_DB_PASS: hero_donate
+      HERO_DONATE_DB_BASE: hero_donate
+    depends_on:
+      db:
+        condition: service_healthy
+
+
+
+volumes:
+  hero_donate-db-data:
+    name: hero_donate-db-data
